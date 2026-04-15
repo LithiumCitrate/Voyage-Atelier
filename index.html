@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,14 +17,14 @@
         <p class="eyebrow">Voyage Atelier</p>
         <h1>把灵感，整理成真正能出发的行程。</h1>
         <p class="hero-text">
-          一个轻量的旅游行程规划网站。管理旅行信息、按天安排行程、记录预算与备注，并且只在你主动导入或导出时处理数据。
+          先在地图上选地点，再把它们编织成完整的旅行计划。网站不会自动保存个人信息，但你可以随时导入或导出自己的行程文件。
         </p>
       </div>
 
       <aside class="hero-summary">
         <span id="trip-date-range" class="summary-label">还没有设置出行日期</span>
         <strong id="trip-title-display">下一次旅行，从这里开始。</strong>
-        <p id="trip-pace-display" class="summary-subtext">先填写目的地和日期，网站会自动生成每日行程视图。</p>
+        <p id="trip-pace-display" class="summary-subtext">填写目的地和日期后，就可以按天安排路线，并在地图上看到行程连线。</p>
       </aside>
     </header>
 
@@ -103,6 +104,21 @@
             <p class="eyebrow small">Build Itinerary</p>
             <h2>添加行程</h2>
           </div>
+        </div>
+
+        <div class="map-card">
+          <div class="map-card-topline">
+            <div>
+              <span class="stat-label">Map Picking</span>
+              <strong class="map-card-title">先在地图上点一个地点</strong>
+            </div>
+            <div class="map-action-group">
+              <button id="clear-selected-point" class="ghost-button" type="button">清除选点</button>
+              <button id="focus-route" class="ghost-button" type="button">查看全部路线</button>
+            </div>
+          </div>
+          <div id="map" class="map-canvas" aria-label="旅行地图"></div>
+          <p id="map-selection-status" class="map-status">还没有选点。点击地图后，新建行程会自动绑定这个位置。</p>
         </div>
 
         <form id="entry-form" class="trip-form">
@@ -196,12 +212,12 @@
           <article class="insight-card">
             <span class="stat-label">当前目的地</span>
             <strong id="destination-display">待设定</strong>
-            <p id="trip-notes-display" class="insight-copy">补充一些旅行期待，页面会把它放在这里作为主线提醒。</p>
+            <p id="trip-notes-display" class="insight-copy">补充一些旅行期待，页面会把它放在这里，提醒你这趟旅行真正想去哪里。</p>
           </article>
           <article class="insight-card">
             <span class="stat-label">已确认项目</span>
             <strong id="confirmed-count">0</strong>
-            <p class="insight-copy">把酒店、门票和交通预订状态标记清楚，出发前会轻松很多。</p>
+            <p class="insight-copy">住宿、交通和门票标记得越清楚，地图上的路线越容易转化成真正可执行的计划。</p>
           </article>
         </div>
       </section>
@@ -228,13 +244,17 @@
           <span class="timeline-time"></span>
           <strong class="timeline-title"></strong>
         </div>
-        <button class="delete-button" type="button">删除</button>
+        <div class="timeline-actions">
+          <button class="focus-button" type="button">地图查看</button>
+          <button class="delete-button" type="button">删除</button>
+        </div>
       </div>
       <p class="timeline-meta"></p>
       <p class="timeline-notes"></p>
     </article>
   </template>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="script.js"></script>
 </body>
 </html>

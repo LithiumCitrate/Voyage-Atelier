@@ -12,6 +12,10 @@ const emptyState = {
   entries: []
 };
 
+const routePalette = ["#1f7f77", "#d1683f", "#6b6bc5", "#2e7d4f", "#9d5a9e", "#9d7f2f"];
+const defaultMapCenter = [34.5, 104];
+const defaultMapZoom = 4;
+
 const tripForm = document.getElementById("trip-form");
 const entryForm = document.getElementById("entry-form");
 const tripNameInput = document.getElementById("trip-name");
@@ -46,10 +50,18 @@ const importTripButton = document.getElementById("import-trip");
 const exportTripButton = document.getElementById("export-trip");
 const importFileInput = document.getElementById("import-file");
 const clearDayButton = document.getElementById("clear-day");
+const clearSelectedPointButton = document.getElementById("clear-selected-point");
+const focusRouteButton = document.getElementById("focus-route");
+const mapSelectionStatus = document.getElementById("map-selection-status");
 const timelineTemplate = document.getElementById("timeline-item-template");
 
 let state = structuredClone(emptyState);
 let activeDay = 1;
+let pendingMapPoint = null;
+let map = null;
+let selectedPointMarker = null;
+let routeLayerGroup = null;
+let markerLayerGroup = null;
 
 function sanitizeImportedState(input) {
   const trip = input && typeof input === "object" && input.trip && typeof input.trip === "object"
@@ -79,16 +91,33 @@ function sanitizeImportedState(input) {
       type: ["sightseeing", "food", "stay", "transport", "shopping", "rest"].includes(entry.type) ? entry.type : "sightseeing",
       cost: Number(entry.cost) || 0,
       status: ["idea", "booked", "confirmed"].includes(entry.status) ? entry.status : "idea",
-      notes: typeof entry.notes === "string" ? entry.notes : ""
+      notes: typeof entry.notes === "string" ? entry.notes : "",
+      location: sanitizeLocation(entry.location)
     })).filter((entry) => entry.title)
   };
+}
+
+function sanitizeLocation(location) {
+  if (!location || typeof location !== "object") {
+    return null;
+  }
+
+  const lat = Number(location.lat);
+  const lng = Number(location.lng);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return null;
+  }
+
+  return { lat, lng };
 }
 
 function normalizeEntriesToTrip() {
   const maxDay = tripDaysCount();
   state.entries = state.entries.map((entry) => ({
     ...entry,
-    day: Math.min(Math.max(Number(entry.day) || 1, 1), maxDay)
+    day: Math.min(Math.max(Number(entry.day) || 1, 1), maxDay),
+    location: sanitizeLocation(entry.location)
   }));
 }
 
@@ -188,6 +217,10 @@ function entryMeta(entry) {
     parts.push(formatCurrency(entry.cost));
   }
 
+  if (entry.location) {
+    parts.push("地图已定位");
+  }
+
   return parts.join(" | ");
 }
 
@@ -260,14 +293,172 @@ function renderSummary() {
   tripTitleDisplay.textContent = state.trip.name || "下一次旅行，从这里开始。";
   tripPaceDisplay.textContent = state.trip.destination
     ? `${state.trip.destination} · ${paceLabel(state.trip.pace)}节奏 · ${totalDays} 天`
-    : "先填写目的地和日期，网站会自动生成每日行程视图。";
+    : "填写目的地和日期后，就可以按天安排路线，并在地图上看到行程连线。";
 
   statDays.textContent = String(totalDays);
   statItems.textContent = String(totalEntries);
   statBudget.textContent = `${budgetPercent}%`;
   destinationDisplay.textContent = state.trip.destination || "待设定";
-  tripNotesDisplay.textContent = state.trip.notes || "补充一些旅行期待，页面会把它放在这里作为主线提醒。";
+  tripNotesDisplay.textContent = state.trip.notes || "补充一些旅行期待，页面会把它放在这里，提醒你这趟旅行真正想去哪里。";
   confirmedCount.textContent = String(bookedEntries);
+}
+
+function selectedPointLabel(point) {
+  return `${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}`;
+}
+
+function renderMapSelectionStatus() {
+  if (!pendingMapPoint) {
+    mapSelectionStatus.textContent = "还没有选点。点击地图后，新建行程会自动绑定这个位置。";
+    return;
+  }
+
+  mapSelectionStatus.textContent = `已选择地图位置 ${selectedPointLabel(pendingMapPoint)}。提交行程时会一起写入。`;
+}
+
+function ensureMap() {
+  if (map) {
+    return;
+  }
+
+  map = L.map("map", {
+    zoomControl: true
+  }).setView(defaultMapCenter, defaultMapZoom);
+
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+
+  routeLayerGroup = L.layerGroup().addTo(map);
+  markerLayerGroup = L.layerGroup().addTo(map);
+
+  map.on("click", (event) => {
+    pendingMapPoint = {
+      lat: event.latlng.lat,
+      lng: event.latlng.lng
+    };
+
+    if (!selectedPointMarker) {
+      selectedPointMarker = L.marker([pendingMapPoint.lat, pendingMapPoint.lng]).addTo(map);
+    } else {
+      selectedPointMarker.setLatLng([pendingMapPoint.lat, pendingMapPoint.lng]);
+    }
+
+    if (!entryPlaceInput.value.trim()) {
+      entryPlaceInput.value = `地图选点 ${selectedPointLabel(pendingMapPoint)}`;
+    }
+
+    renderMapSelectionStatus();
+  });
+}
+
+function clearPendingMapPoint() {
+  pendingMapPoint = null;
+
+  if (selectedPointMarker) {
+    selectedPointMarker.remove();
+    selectedPointMarker = null;
+  }
+
+  renderMapSelectionStatus();
+}
+
+function routeColorForDay(day) {
+  return routePalette[(day - 1) % routePalette.length];
+}
+
+function allLocatedEntries() {
+  return state.entries.filter((entry) => entry.location);
+}
+
+function fitMapToEntries(entries) {
+  ensureMap();
+
+  const validEntries = entries.filter((entry) => entry.location);
+
+  if (validEntries.length === 0) {
+    map.setView(defaultMapCenter, defaultMapZoom);
+    return;
+  }
+
+  if (validEntries.length === 1) {
+    map.setView([validEntries[0].location.lat, validEntries[0].location.lng], 13);
+    return;
+  }
+
+  const bounds = L.latLngBounds(validEntries.map((entry) => [entry.location.lat, entry.location.lng]));
+  map.fitBounds(bounds.pad(0.18));
+}
+
+function renderMapData() {
+  ensureMap();
+
+  routeLayerGroup.clearLayers();
+  markerLayerGroup.clearLayers();
+
+  const groupedByDay = new Map();
+
+  for (const entry of state.entries) {
+    if (!entry.location) {
+      continue;
+    }
+
+    const dayEntries = groupedByDay.get(entry.day) || [];
+    dayEntries.push(entry);
+    groupedByDay.set(entry.day, dayEntries);
+  }
+
+  for (const [day] of groupedByDay.entries()) {
+    const sortedEntries = entriesForDay(day).filter((entry) => entry.location);
+    const color = routeColorForDay(day);
+
+    for (const entry of sortedEntries) {
+      const marker = L.circleMarker([entry.location.lat, entry.location.lng], {
+        radius: 8,
+        weight: 2,
+        color,
+        fillColor: "#ffffff",
+        fillOpacity: 0.92
+      });
+
+      marker.bindPopup(`
+        <strong>Day ${entry.day} · ${entry.title}</strong><br>
+        ${entry.place || "未填写地点"}<br>
+        ${entry.time || "时间待定"}
+      `);
+      marker.addTo(markerLayerGroup);
+    }
+
+    if (sortedEntries.length >= 2) {
+      const line = L.polyline(
+        sortedEntries.map((entry) => [entry.location.lat, entry.location.lng]),
+        {
+          color,
+          weight: 4,
+          opacity: 0.82
+        }
+      );
+
+      line.bindPopup(`Day ${day} 路线`);
+      line.addTo(routeLayerGroup);
+    }
+  }
+
+  if (pendingMapPoint) {
+    if (!selectedPointMarker) {
+      selectedPointMarker = L.marker([pendingMapPoint.lat, pendingMapPoint.lng]).addTo(map);
+    } else {
+      selectedPointMarker.setLatLng([pendingMapPoint.lat, pendingMapPoint.lng]).addTo(map);
+    }
+  } else if (selectedPointMarker) {
+    selectedPointMarker.remove();
+    selectedPointMarker = null;
+  }
+
+  setTimeout(() => {
+    map.invalidateSize();
+  }, 0);
 }
 
 function renderTimeline() {
@@ -282,7 +473,7 @@ function renderTimeline() {
   if (items.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "这一天还没有安排，适合先放一个锚点：酒店、第一顿饭，或者最想去的地方。";
+    empty.textContent = "这一天还没有安排。可以先在地图上点一个锚点，再补上时间、类型和备注。";
     timeline.appendChild(empty);
     return;
   }
@@ -294,6 +485,7 @@ function renderTimeline() {
     const title = fragment.querySelector(".timeline-title");
     const meta = fragment.querySelector(".timeline-meta");
     const notes = fragment.querySelector(".timeline-notes");
+    const focusButton = fragment.querySelector(".focus-button");
     const deleteButton = fragment.querySelector(".delete-button");
 
     card.dataset.id = entry.id;
@@ -301,6 +493,16 @@ function renderTimeline() {
     title.textContent = entry.title;
     meta.textContent = entryMeta(entry);
     notes.textContent = entry.notes || "";
+
+    if (!entry.location) {
+      focusButton.disabled = true;
+      focusButton.textContent = "无地图点";
+    } else {
+      focusButton.addEventListener("click", () => {
+        ensureMap();
+        map.setView([entry.location.lat, entry.location.lng], 14);
+      });
+    }
 
     deleteButton.addEventListener("click", () => {
       state.entries = state.entries.filter((item) => item.id !== entry.id);
@@ -316,20 +518,19 @@ function render() {
   syncDayOptions();
   renderSummary();
   renderTimeline();
+  renderMapSelectionStatus();
+  renderMapData();
 }
 
 tripForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
-  const startDate = tripStartInput.value;
-  const endDate = tripEndInput.value;
-
   state.trip = {
     name: tripNameInput.value.trim(),
     destination: tripDestinationInput.value.trim(),
     pace: tripPaceInput.value,
-    startDate,
-    endDate,
+    startDate: tripStartInput.value,
+    endDate: tripEndInput.value,
     budget: Number(tripBudgetInput.value) || 0,
     currency: tripCurrencyInput.value.trim().toUpperCase() || "CNY",
     notes: tripNotesInput.value.trim()
@@ -351,6 +552,12 @@ entryForm.addEventListener("submit", (event) => {
   }
 
   const selectedDay = Number(entryDayInput.value) || 1;
+  const location = pendingMapPoint
+    ? {
+        lat: pendingMapPoint.lat,
+        lng: pendingMapPoint.lng
+      }
+    : null;
 
   state.entries.push({
     id: createId(),
@@ -361,7 +568,8 @@ entryForm.addEventListener("submit", (event) => {
     type: entryTypeInput.value,
     cost: Number(entryCostInput.value) || 0,
     status: entryStatusInput.value,
-    notes: entryNotesInput.value.trim()
+    notes: entryNotesInput.value.trim(),
+    location
   });
 
   activeDay = selectedDay;
@@ -369,6 +577,7 @@ entryForm.addEventListener("submit", (event) => {
   entryTypeInput.value = "sightseeing";
   entryStatusInput.value = "idea";
   entryDayInput.value = String(activeDay);
+  clearPendingMapPoint();
   render();
   entryTitleInput.focus();
 });
@@ -381,12 +590,21 @@ entryDayInput.addEventListener("change", () => {
 resetTripButton.addEventListener("click", () => {
   state = structuredClone(emptyState);
   activeDay = 1;
+  clearPendingMapPoint();
   render();
 });
 
 clearDayButton.addEventListener("click", () => {
   state.entries = state.entries.filter((entry) => entry.day !== activeDay);
   render();
+});
+
+clearSelectedPointButton.addEventListener("click", () => {
+  clearPendingMapPoint();
+});
+
+focusRouteButton.addEventListener("click", () => {
+  fitMapToEntries(allLocatedEntries());
 });
 
 exportTripButton.addEventListener("click", () => {
@@ -421,7 +639,9 @@ importFileInput.addEventListener("change", async () => {
     state = sanitizeImportedState(parsed);
     normalizeEntriesToTrip();
     activeDay = 1;
+    clearPendingMapPoint();
     render();
+    fitMapToEntries(allLocatedEntries());
   } catch (error) {
     window.alert("导入失败，请确认文件是有效的 JSON 行程文件。");
   } finally {
@@ -430,4 +650,5 @@ importFileInput.addEventListener("change", async () => {
 });
 
 normalizeEntriesToTrip();
+ensureMap();
 render();
