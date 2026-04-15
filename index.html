@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voyage Atelier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero panel">
+      <div class="hero-copy">
+        <p class="eyebrow">Voyage Atelier</p>
+        <h1>把灵感，整理成真正能出发的行程。</h1>
+        <p class="hero-text">
+          一个轻量的旅游行程规划网站。管理旅行信息、按天安排行程、记录预算与备注，并且只在你主动导入或导出时处理数据。
+        </p>
+      </div>
+
+      <aside class="hero-summary">
+        <span id="trip-date-range" class="summary-label">还没有设置出行日期</span>
+        <strong id="trip-title-display">下一次旅行，从这里开始。</strong>
+        <p id="trip-pace-display" class="summary-subtext">先填写目的地和日期，网站会自动生成每日行程视图。</p>
+      </aside>
+    </header>
+
+    <main class="layout">
+      <section class="panel planner">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow small">Trip Setup</p>
+            <h2>旅行信息</h2>
+          </div>
+          <div class="action-group">
+            <input id="import-file" type="file" accept="application/json" hidden>
+            <button id="import-trip" class="ghost-button" type="button">导入行程</button>
+            <button id="export-trip" class="ghost-button" type="button">导出行程</button>
+            <button id="reset-trip" class="ghost-button" type="button">清空内容</button>
+          </div>
+        </div>
+
+        <form id="trip-form" class="trip-form">
+          <label class="field">
+            <span>旅行名称</span>
+            <input id="trip-name" type="text" maxlength="60" placeholder="例如：城市漫游 / 海边假期 / 周末短住">
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>目的地</span>
+              <input id="trip-destination" type="text" maxlength="40" placeholder="例如：目的地城市 / 山区 / 海岛">
+            </label>
+
+            <label class="field">
+              <span>旅行节奏</span>
+              <select id="trip-pace">
+                <option value="slow">慢游</option>
+                <option value="balanced" selected>平衡</option>
+                <option value="packed">高密度</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span>开始日期</span>
+              <input id="trip-start" type="date">
+            </label>
+
+            <label class="field">
+              <span>结束日期</span>
+              <input id="trip-end" type="date">
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span>总预算</span>
+              <input id="trip-budget" type="number" min="0" step="1" placeholder="选填">
+            </label>
+
+            <label class="field">
+              <span>货币</span>
+              <input id="trip-currency" type="text" maxlength="8" value="CNY" placeholder="CNY">
+            </label>
+          </div>
+
+          <label class="field">
+            <span>旅行愿景</span>
+            <textarea id="trip-notes" rows="4" maxlength="240" placeholder="记录旅行偏好、节奏安排或需要预留的休息时间……"></textarea>
+          </label>
+
+          <button class="primary-button" type="submit">保存旅行信息</button>
+        </form>
+      </section>
+
+      <section class="panel itinerary">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow small">Build Itinerary</p>
+            <h2>添加行程</h2>
+          </div>
+        </div>
+
+        <form id="entry-form" class="trip-form">
+          <div class="field-row">
+            <label class="field">
+              <span>第几天</span>
+              <select id="entry-day"></select>
+            </label>
+
+            <label class="field">
+              <span>时间</span>
+              <input id="entry-time" type="time">
+            </label>
+          </div>
+
+          <label class="field">
+            <span>行程标题</span>
+            <input id="entry-title" type="text" maxlength="80" placeholder="例如：上午散步、办理入住、晚餐安排" required>
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>地点</span>
+              <input id="entry-place" type="text" maxlength="60" placeholder="例如：老城区、车站附近、海边步道">
+            </label>
+
+            <label class="field">
+              <span>类型</span>
+              <select id="entry-type">
+                <option value="sightseeing">观光</option>
+                <option value="food">餐饮</option>
+                <option value="stay">住宿</option>
+                <option value="transport">交通</option>
+                <option value="shopping">购物</option>
+                <option value="rest">休息</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span>预计花费</span>
+              <input id="entry-cost" type="number" min="0" step="1" placeholder="选填">
+            </label>
+
+            <label class="field">
+              <span>预订状态</span>
+              <select id="entry-status">
+                <option value="idea">灵感</option>
+                <option value="booked">已预订</option>
+                <option value="confirmed">已确认</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>备注</span>
+            <textarea id="entry-notes" rows="3" maxlength="240" placeholder="记录预约信息、交通提醒或备选方案……"></textarea>
+          </label>
+
+          <button class="primary-button" type="submit">加入行程</button>
+        </form>
+      </section>
+    </main>
+
+    <section class="dashboard-grid">
+      <section class="panel metrics">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow small">Overview</p>
+            <h2>旅行总览</h2>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span class="stat-label">旅行天数</span>
+            <strong id="stat-days">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">行程数量</span>
+            <strong id="stat-items">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">预算使用</span>
+            <strong id="stat-budget">0%</strong>
+          </article>
+        </div>
+
+        <div class="insight-grid">
+          <article class="insight-card">
+            <span class="stat-label">当前目的地</span>
+            <strong id="destination-display">待设定</strong>
+            <p id="trip-notes-display" class="insight-copy">补充一些旅行期待，页面会把它放在这里作为主线提醒。</p>
+          </article>
+          <article class="insight-card">
+            <span class="stat-label">已确认项目</span>
+            <strong id="confirmed-count">0</strong>
+            <p class="insight-copy">把酒店、门票和交通预订状态标记清楚，出发前会轻松很多。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel schedule">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow small">Day By Day</p>
+            <h2>按天查看行程</h2>
+          </div>
+          <button id="clear-day" class="ghost-button" type="button">清空当前天</button>
+        </div>
+
+        <div id="day-tabs" class="day-tabs"></div>
+        <div id="timeline" class="timeline" aria-live="polite"></div>
+      </section>
+    </section>
+  </div>
+
+  <template id="timeline-item-template">
+    <article class="timeline-card">
+      <div class="timeline-topline">
+        <div>
+          <span class="timeline-time"></span>
+          <strong class="timeline-title"></strong>
+        </div>
+        <button class="delete-button" type="button">删除</button>
+      </div>
+      <p class="timeline-meta"></p>
+      <p class="timeline-notes"></p>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
