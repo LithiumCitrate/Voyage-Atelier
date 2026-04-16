@@ -23,9 +23,9 @@
         <div class="welcome-orbit orbit-b"></div>
         <div class="welcome-content">
           <p class="eyebrow">Voyage Atelier</p>
-          <h1 class="welcome-title">把灵感，整理成真正能出发的行程。</h1>
+          <h1 class="welcome-title">把灵感，整理成<br>真正能出发的行程。</h1>
           <p class="welcome-copy">
-            先感受路线，再进入规划。向下滑动后，就会进入完整的旅行设计页面；当前这次访问里不会再返回欢迎页，只有刷新浏览器时才会重新展示。
+            从一个地点开始，慢慢拼出节奏、路线和停留的理由。让每一次想出发的念头，都能在这里长成一份清晰而优雅的旅行计划。
           </p>
           <div class="welcome-actions">
             <button class="primary-button welcome-enter-button" type="button" @click="enterPlanner">开始规划</button>
@@ -40,12 +40,37 @@
     </transition>
 
     <div class="page-shell">
+      <section class="panel atelier-banner">
+        <div class="atelier-copy">
+          <p class="eyebrow">Studio View</p>
+          <h2 class="atelier-title">{{ trip.name || "为下一次出发，先搭一个清晰的旅行草图。" }}</h2>
+          <p class="atelier-description">
+            {{ trip.destination ? `${trip.destination} · ${formatDateRange()} · ${paceLabel(trip.pace)}节奏` : "先写下目的地、日期和几段关键安排，地图与行程就会慢慢长成一条真正可执行的路径。" }}
+          </p>
+        </div>
+        <div class="atelier-metrics">
+          <article class="atelier-chip">
+            <span>规划天数</span>
+            <strong>{{ tripDaysCount() }}</strong>
+          </article>
+          <article class="atelier-chip">
+            <span>已写行程</span>
+            <strong>{{ entries.length }}</strong>
+          </article>
+          <article class="atelier-chip">
+            <span>已确认</span>
+            <strong>{{ confirmedCount }}</strong>
+          </article>
+        </div>
+      </section>
+
       <main class="layout">
         <section class="panel planner">
           <div class="section-heading">
             <div>
               <p class="eyebrow small">Trip Setup</p>
               <h2>旅行信息</h2>
+              <p class="section-subcopy">先确定这趟旅行的大方向，下面的地图、天数和路线都会跟着这组信息展开。</p>
             </div>
             <div class="action-group">
               <input ref="importFile" type="file" accept="application/json" hidden @change="handleImport">
@@ -115,6 +140,7 @@
             <div>
               <p class="eyebrow small">Build Itinerary</p>
               <h2>添加行程</h2>
+              <p class="section-subcopy">先落点，再补时间、类型和备注。地图会把每天的安排整理成一条更直观的旅行路径。</p>
             </div>
           </div>
 
@@ -158,6 +184,10 @@
             <div id="map" class="map-canvas" aria-label="旅行地图"></div>
             <p v-if="mapError" class="map-status map-error">{{ mapError }}</p>
             <p v-if="!isEditingEntry" class="map-status">{{ mapSelectionText }}</p>
+            <div class="map-legend">
+              <span class="legend-dot"></span>
+              <span>地图上的 pin 会按不同天数显示不同颜色，路线默认聚焦当前正在查看的一天。</span>
+            </div>
           </div>
 
           <form class="trip-form" @submit.prevent="addEntry">
@@ -241,6 +271,7 @@
             <div>
               <p class="eyebrow small">Overview</p>
               <h2>旅行总览</h2>
+              <p class="section-subcopy">把节奏、预算和确认进度放在一处，方便随时判断这趟旅程是不是还在你想要的状态里。</p>
             </div>
           </div>
 
@@ -275,11 +306,16 @@
 
         <section class="panel schedule">
           <div class="section-heading">
-            <div>
-              <p class="eyebrow small">Day By Day</p>
-              <h2>按天查看行程</h2>
+            <div class="section-heading-copy">
+              <div class="section-heading-row">
+                <div>
+                  <p class="eyebrow small">Day By Day</p>
+                  <h2>按天查看行程</h2>
+                </div>
+                <button class="ghost-button" type="button" @click="clearCurrentDay">清空当前天</button>
+              </div>
+              <p class="section-subcopy">这里保留的是已经成形的日程。拖拽可以微调顺序，地图查看会把视角带到对应地点。</p>
             </div>
-            <button class="ghost-button" type="button" @click="clearCurrentDay">清空当前天</button>
           </div>
 
           <div v-if="scheduleDays.length > 0" class="day-tabs">
@@ -329,7 +365,13 @@
                   <button class="delete-button" type="button" @click="deleteEntry(entry.id)">删除</button>
                 </div>
               </div>
-              <p class="timeline-meta">{{ entryMeta(entry) }}</p>
+              <div class="timeline-badges">
+                <span v-if="entry.place" class="timeline-badge timeline-badge-place">{{ entry.place }}</span>
+                <span class="timeline-badge">{{ typeLabel(entry.type) }}</span>
+                <span class="timeline-badge">{{ statusLabel(entry.status) }}</span>
+                <span v-if="Number(entry.cost) > 0" class="timeline-badge">{{ formatCurrency(entry.cost) }}</span>
+                <span v-if="entry.location" class="timeline-badge">地图已定位</span>
+              </div>
               <p class="timeline-notes">{{ entry.notes }}</p>
             </article>
           </div>
