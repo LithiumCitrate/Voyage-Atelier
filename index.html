@@ -40,32 +40,9 @@
     </transition>
 
     <div class="page-shell">
-      <section class="panel atelier-banner">
-        <div class="atelier-copy">
-          <p class="eyebrow">Studio View</p>
-          <h2 class="atelier-title">{{ trip.name || "为下一次出发，先搭一个清晰的旅行草图。" }}</h2>
-          <p class="atelier-description">
-            {{ trip.destination ? `${trip.destination} · ${formatDateRange()} · ${paceLabel(trip.pace)}节奏` : "先写下目的地、日期和几段关键安排，地图与行程就会慢慢长成一条真正可执行的路径。" }}
-          </p>
-        </div>
-        <div class="atelier-metrics">
-          <article class="atelier-chip">
-            <span>规划天数</span>
-            <strong>{{ tripDaysCount() }}</strong>
-          </article>
-          <article class="atelier-chip">
-            <span>已写行程</span>
-            <strong>{{ entries.length }}</strong>
-          </article>
-          <article class="atelier-chip">
-            <span>已确认</span>
-            <strong>{{ confirmedCount }}</strong>
-          </article>
-        </div>
-      </section>
-
-      <main class="layout">
-        <section class="panel planner">
+      <main class="workspace-shell">
+        <aside class="sidebar-stack">
+          <section class="panel planner">
           <div class="section-heading">
             <div>
               <p class="eyebrow small">Trip Setup</p>
@@ -133,250 +110,283 @@
 
             <button class="primary-button" type="submit">保存旅行信息</button>
           </form>
-        </section>
+          </section>
 
-        <section class="panel itinerary">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow small">Build Itinerary</p>
-              <h2>添加行程</h2>
-              <p class="section-subcopy">先落点，再补时间、类型和备注。地图会把每天的安排整理成一条更直观的旅行路径。</p>
-            </div>
-          </div>
-
-          <div class="map-card">
-            <div class="map-card-topline">
+          <section class="panel metrics metrics-sidebar">
+            <div class="section-heading">
               <div>
-                <span class="stat-label">Map Picking</span>
-                <strong class="map-card-title">地图已就绪，可以直接选点</strong>
+                <p class="eyebrow small">Overview</p>
+                <h2>旅行总览</h2>
+                <p class="section-subcopy">把节奏、预算和确认进度收进侧栏，边规划边看整体状态。</p>
+              </div>
+            </div>
+
+            <div class="stats-grid compact-stats-grid">
+              <article class="stat-card">
+                <span class="stat-label">旅行天数</span>
+                <strong>{{ tripDaysCount() }}</strong>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">行程数量</span>
+                <strong>{{ entries.length }}</strong>
+              </article>
+              <article class="stat-card">
+                <span class="stat-label">预算使用</span>
+                <strong>{{ budgetPercent }}%</strong>
+              </article>
+            </div>
+
+            <div class="insight-grid compact-insight-grid">
+              <article class="insight-card">
+                <span class="stat-label">当前目的地</span>
+                <strong>{{ trip.destination || "待设定" }}</strong>
+                <p class="insight-copy">{{ trip.notes || "补充一些旅行期待，页面会把它放在这里，提醒你这趟旅行真正想去哪里。" }}</p>
+              </article>
+              <article class="insight-card">
+                <span class="stat-label">已确认项目</span>
+                <strong>{{ confirmedCount }}</strong>
+                <p class="insight-copy">住宿、交通和门票标记得越清楚，地图上的路线越容易转化成真正可执行的计划。</p>
+              </article>
+            </div>
+          </section>
+
+        </aside>
+
+        <section class="main-stage">
+          <section class="panel atelier-banner">
+            <div class="atelier-copy">
+              <p class="eyebrow">Studio View</p>
+              <h2 class="atelier-title">{{ trip.name || "为下一次出发，先搭一个清晰的旅行草图。" }}</h2>
+              <p class="atelier-description">
+                {{ trip.destination ? `${trip.destination} · ${formatDateRange()} · ${paceLabel(trip.pace)}节奏` : "先写下目的地、日期和几段关键安排，地图与行程就会慢慢长成一条真正可执行的路径。" }}
+              </p>
+            </div>
+            <div class="atelier-metrics">
+              <article class="atelier-chip">
+                <span>规划天数</span>
+                <strong>{{ tripDaysCount() }}</strong>
+              </article>
+              <article class="atelier-chip">
+                <span>已写行程</span>
+                <strong>{{ entries.length }}</strong>
+              </article>
+              <article class="atelier-chip">
+                <span>已确认</span>
+                <strong>{{ confirmedCount }}</strong>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel map-stage">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow small">Map Stage</p>
+                <h2>地图与路线</h2>
+                <p class="section-subcopy">把地图当作主舞台。先搜地点、落点，再让路线把每天的计划连成一条真正的出发线。</p>
               </div>
               <div class="map-action-group">
                 <button class="ghost-button" type="button" @click="clearPendingMapPoint">清除选点</button>
               </div>
             </div>
 
-            <div class="map-search-row">
-              <label class="field map-search-field">
-                <span>搜索地点</span>
-                <input
-                  v-model.trim="mapSearchQuery"
-                  type="text"
-                  maxlength="80"
-                  placeholder="输入地点名、街道、商圈或地址"
-                  @keydown.enter.prevent="searchPlaces"
-                >
-              </label>
-              <button class="ghost-button map-search-button" type="button" @click="searchPlaces">搜索地点</button>
-            </div>
+            <div class="map-card map-card-featured">
+              <div class="map-search-row">
+                <label class="field map-search-field">
+                  <span>搜索地点</span>
+                  <input
+                    v-model.trim="mapSearchQuery"
+                    type="text"
+                    maxlength="80"
+                    placeholder="输入地点名、街道、商圈或地址"
+                    @keydown.enter.prevent="searchPlaces"
+                  >
+                </label>
+                <button class="ghost-button map-search-button" type="button" @click="searchPlaces">搜索地点</button>
+              </div>
 
-            <div class="map-search-results" aria-live="polite">
-              <article v-for="item in searchResults" :key="item.id" class="search-result-card">
-                <strong class="search-result-title">{{ item.title }}</strong>
-                <p class="search-result-meta">{{ item.meta }}</p>
-                <button class="ghost-button" type="button" @click="pickSearchResult(item)">定位并回填</button>
-              </article>
+              <div class="map-search-results" aria-live="polite">
+                <article v-for="item in searchResults" :key="item.id" class="search-result-card">
+                  <strong class="search-result-title">{{ item.title }}</strong>
+                  <p class="search-result-meta">{{ item.meta }}</p>
+                  <button class="ghost-button" type="button" @click="pickSearchResult(item)">定位并回填</button>
+                </article>
 
-              <div v-if="mapSearchQuery && searchResults.length === 0 && searchTried" class="search-result-card">
-                没有找到可用结果。可以换一个更具体的关键词，或直接在地图上点选。
+                <div v-if="mapSearchQuery && searchResults.length === 0 && searchTried" class="search-result-card">
+                  没有找到可用结果。可以换一个更具体的关键词，或直接在地图上点选。
+                </div>
+              </div>
+
+              <div class="map-frame">
+                <div id="map" class="map-canvas" aria-label="旅行地图"></div>
+              </div>
+              <p v-if="mapError" class="map-status map-error">{{ mapError }}</p>
+              <p v-if="!isEditingEntry" class="map-status">{{ mapSelectionText }}</p>
+              <div class="map-legend">
+                <span class="legend-dot"></span>
+                <span>地图上的 pin 会按不同天数显示不同颜色，路线默认聚焦当前正在查看的一天。</span>
               </div>
             </div>
+          </section>
 
-            <div id="map" class="map-canvas" aria-label="旅行地图"></div>
-            <p v-if="mapError" class="map-status map-error">{{ mapError }}</p>
-            <p v-if="!isEditingEntry" class="map-status">{{ mapSelectionText }}</p>
-            <div class="map-legend">
-              <span class="legend-dot"></span>
-              <span>地图上的 pin 会按不同天数显示不同颜色，路线默认聚焦当前正在查看的一天。</span>
-            </div>
-          </div>
+          <section class="planning-deck">
+            <section class="panel itinerary">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow small">Build Itinerary</p>
+                  <h2>添加行程</h2>
+                  <p class="section-subcopy">先落点，再补时间、类型和备注。地图会把每天的安排整理成一条更直观的旅行路径。</p>
+                </div>
+              </div>
 
-          <form class="trip-form" @submit.prevent="addEntry">
-            <div class="field-row">
-              <label class="field">
-                <span>第几天</span>
-                <select v-model.number="entryForm.day">
-                  <option v-for="day in dayOptions" :key="day" :value="day">Day {{ day }}</option>
-                </select>
-              </label>
+              <form class="trip-form" @submit.prevent="addEntry">
+                <div class="field-row">
+                  <label class="field">
+                    <span>第几天</span>
+                    <select v-model.number="entryForm.day">
+                      <option v-for="day in dayOptions" :key="day" :value="day">Day {{ day }}</option>
+                    </select>
+                  </label>
 
-              <label class="field">
-                <span>时间</span>
-                <input v-model="entryForm.time" type="time">
-              </label>
-            </div>
+                  <label class="field">
+                    <span>时间</span>
+                    <input v-model="entryForm.time" type="time">
+                  </label>
+                </div>
 
-            <label class="field">
-              <span>行程标题</span>
-              <input
-                ref="entryTitleInput"
-                v-model.trim="entryForm.title"
-                type="text"
-                maxlength="80"
-                placeholder="例如：上午散步、办理入住、晚餐安排"
-                required
-              >
-            </label>
+                <label class="field">
+                  <span>行程标题</span>
+                  <input
+                    ref="entryTitleInput"
+                    v-model.trim="entryForm.title"
+                    type="text"
+                    maxlength="80"
+                    placeholder="例如：上午散步、办理入住、晚餐安排"
+                    required
+                  >
+                </label>
 
-            <div class="field-row">
-              <label class="field">
-                <span>地点</span>
-                <input v-model.trim="entryForm.place" type="text" maxlength="60" placeholder="例如：老城区、车站附近、海边步道">
-              </label>
+                <div class="field-row">
+                  <label class="field">
+                    <span>地点</span>
+                    <input v-model.trim="entryForm.place" type="text" maxlength="60" placeholder="例如：老城区、车站附近、海边步道">
+                  </label>
 
-              <label class="field">
-                <span>类型</span>
-                <select v-model="entryForm.type">
-                  <option value="sightseeing">观光</option>
-                  <option value="food">餐饮</option>
-                  <option value="stay">住宿</option>
-                  <option value="transport">交通</option>
-                  <option value="shopping">购物</option>
-                  <option value="rest">休息</option>
-                </select>
-              </label>
-            </div>
+                  <label class="field">
+                    <span>类型</span>
+                    <select v-model="entryForm.type">
+                      <option value="sightseeing">观光</option>
+                      <option value="food">餐饮</option>
+                      <option value="stay">住宿</option>
+                      <option value="transport">交通</option>
+                      <option value="shopping">购物</option>
+                      <option value="rest">休息</option>
+                    </select>
+                  </label>
+                </div>
 
-            <div class="field-row">
-              <label class="field">
-                <span>预计花费</span>
-                <input v-model.number="entryForm.cost" type="number" min="0" step="1" placeholder="选填">
-              </label>
+                <div class="field-row">
+                  <label class="field">
+                    <span>预计花费</span>
+                    <input v-model.number="entryForm.cost" type="number" min="0" step="1" placeholder="选填">
+                  </label>
 
-              <label class="field">
-                <span>预订状态</span>
-                <select v-model="entryForm.status">
-                  <option value="idea">灵感</option>
-                  <option value="booked">已预订</option>
-                  <option value="confirmed">已确认</option>
-                </select>
-              </label>
-            </div>
+                  <label class="field">
+                    <span>预订状态</span>
+                    <select v-model="entryForm.status">
+                      <option value="idea">灵感</option>
+                      <option value="booked">已预订</option>
+                      <option value="confirmed">已确认</option>
+                    </select>
+                  </label>
+                </div>
 
-            <label class="field">
-              <span>备注</span>
-              <textarea v-model.trim="entryForm.notes" rows="3" maxlength="240" placeholder="记录预约信息、交通提醒或备选方案……"></textarea>
-            </label>
+                <label class="field">
+                  <span>备注</span>
+                  <textarea v-model.trim="entryForm.notes" rows="3" maxlength="240" placeholder="记录预约信息、交通提醒或备选方案……"></textarea>
+                </label>
 
-            <div class="entry-form-actions">
-              <button class="primary-button" type="submit">{{ entrySubmitLabel }}</button>
-              <button v-if="isEditingEntry" class="ghost-button entry-cancel-button" type="button" @click="cancelEntryEdit">取消编辑</button>
-            </div>
-          </form>
+                <div class="entry-form-actions">
+                  <button class="primary-button" type="submit">{{ entrySubmitLabel }}</button>
+                  <button v-if="isEditingEntry" class="ghost-button entry-cancel-button" type="button" @click="cancelEntryEdit">取消编辑</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="panel schedule">
+              <div class="section-heading">
+                <div class="section-heading-copy">
+                  <div class="section-heading-row">
+                    <div>
+                      <p class="eyebrow small">Day By Day</p>
+                      <h2>按天查看行程</h2>
+                    </div>
+                    <button class="ghost-button" type="button" @click="clearCurrentDay">清空当前天</button>
+                  </div>
+                  <p class="section-subcopy">这里保留的是已经成形的日程。拖拽可以微调顺序，地图查看会把视角带到对应地点。</p>
+                </div>
+              </div>
+
+              <div v-if="scheduleDays.length > 0" class="day-tabs">
+                <button
+                  v-for="day in scheduleDays"
+                  :key="day"
+                  class="day-tab"
+                  :class="{ active: activeDay === day }"
+                  type="button"
+                  @click="activeDay = day"
+                >
+                  Day {{ day }}
+                </button>
+              </div>
+
+              <div class="timeline" aria-live="polite">
+                <div v-if="entriesForActiveDay.length === 0" class="empty-state">
+                  这一天还没有安排。可以先在地图上点一个地点，再补上时间、类型和备注。
+                </div>
+
+                <article
+                  v-for="entry in entriesForActiveDay"
+                  :key="entry.id"
+                  class="timeline-card"
+                  :class="{
+                    dragging: draggedEntryId === entry.id,
+                    'drag-over': dragOverEntryId === entry.id && draggedEntryId && draggedEntryId !== entry.id
+                  }"
+                  draggable="true"
+                  @dragstart="handleDragStart(entry.id, $event)"
+                  @dragend="handleDragEnd"
+                  @dragover.prevent="handleDragOver(entry.id)"
+                  @dragleave="handleDragLeave(entry.id)"
+                  @drop.prevent="handleDrop(entry.id)"
+                >
+                  <div class="timeline-topline">
+                    <div>
+                      <span class="timeline-time">{{ entry.time || "待定时间" }}</span>
+                      <strong class="timeline-title">{{ entry.title }}</strong>
+                    </div>
+                    <div class="timeline-actions">
+                      <button class="drag-handle" type="button">拖拽排序</button>
+                      <button class="focus-button" type="button" @click="startEditEntry(entry)">编辑</button>
+                      <button class="focus-button" type="button" :disabled="!entry.location" @click="focusEntry(entry)">
+                        {{ entry.location ? "地图查看" : "无地图点" }}
+                      </button>
+                      <button class="delete-button" type="button" @click="deleteEntry(entry.id)">删除</button>
+                    </div>
+                  </div>
+                  <div class="timeline-badges">
+                    <span v-if="entry.place" class="timeline-badge timeline-badge-place">{{ entry.place }}</span>
+                    <span class="timeline-badge">{{ typeLabel(entry.type) }}</span>
+                    <span class="timeline-badge">{{ statusLabel(entry.status) }}</span>
+                    <span v-if="Number(entry.cost) > 0" class="timeline-badge">{{ formatCurrency(entry.cost) }}</span>
+                    <span v-if="entry.location" class="timeline-badge">地图已定位</span>
+                  </div>
+                  <p class="timeline-notes">{{ entry.notes }}</p>
+                </article>
+              </div>
+            </section>
+          </section>
         </section>
       </main>
-
-      <section class="dashboard-grid">
-        <section class="panel metrics">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow small">Overview</p>
-              <h2>旅行总览</h2>
-              <p class="section-subcopy">把节奏、预算和确认进度放在一处，方便随时判断这趟旅程是不是还在你想要的状态里。</p>
-            </div>
-          </div>
-
-          <div class="stats-grid">
-            <article class="stat-card">
-              <span class="stat-label">旅行天数</span>
-              <strong>{{ tripDaysCount() }}</strong>
-            </article>
-            <article class="stat-card">
-              <span class="stat-label">行程数量</span>
-              <strong>{{ entries.length }}</strong>
-            </article>
-            <article class="stat-card">
-              <span class="stat-label">预算使用</span>
-              <strong>{{ budgetPercent }}%</strong>
-            </article>
-          </div>
-
-          <div class="insight-grid">
-            <article class="insight-card">
-              <span class="stat-label">当前目的地</span>
-              <strong>{{ trip.destination || "待设定" }}</strong>
-              <p class="insight-copy">{{ trip.notes || "补充一些旅行期待，页面会把它放在这里，提醒你这趟旅行真正想去哪里。" }}</p>
-            </article>
-            <article class="insight-card">
-              <span class="stat-label">已确认项目</span>
-              <strong>{{ confirmedCount }}</strong>
-              <p class="insight-copy">住宿、交通和门票标记得越清楚，地图上的路线越容易转化成真正可执行的计划。</p>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel schedule">
-          <div class="section-heading">
-            <div class="section-heading-copy">
-              <div class="section-heading-row">
-                <div>
-                  <p class="eyebrow small">Day By Day</p>
-                  <h2>按天查看行程</h2>
-                </div>
-                <button class="ghost-button" type="button" @click="clearCurrentDay">清空当前天</button>
-              </div>
-              <p class="section-subcopy">这里保留的是已经成形的日程。拖拽可以微调顺序，地图查看会把视角带到对应地点。</p>
-            </div>
-          </div>
-
-          <div v-if="scheduleDays.length > 0" class="day-tabs">
-            <button
-              v-for="day in scheduleDays"
-              :key="day"
-              class="day-tab"
-              :class="{ active: activeDay === day }"
-              type="button"
-              @click="activeDay = day"
-            >
-              Day {{ day }}
-            </button>
-          </div>
-
-          <div class="timeline" aria-live="polite">
-            <div v-if="entriesForActiveDay.length === 0" class="empty-state">
-              这一天还没有安排。可以先在地图上点一个地点，再补上时间、类型和备注。
-            </div>
-
-            <article
-              v-for="entry in entriesForActiveDay"
-              :key="entry.id"
-              class="timeline-card"
-              :class="{
-                dragging: draggedEntryId === entry.id,
-                'drag-over': dragOverEntryId === entry.id && draggedEntryId && draggedEntryId !== entry.id
-              }"
-              draggable="true"
-              @dragstart="handleDragStart(entry.id, $event)"
-              @dragend="handleDragEnd"
-              @dragover.prevent="handleDragOver(entry.id)"
-              @dragleave="handleDragLeave(entry.id)"
-              @drop.prevent="handleDrop(entry.id)"
-            >
-              <div class="timeline-topline">
-                <div>
-                  <span class="timeline-time">{{ entry.time || "待定时间" }}</span>
-                  <strong class="timeline-title">{{ entry.title }}</strong>
-                </div>
-                <div class="timeline-actions">
-                  <button class="drag-handle" type="button">拖拽排序</button>
-                  <button class="focus-button" type="button" @click="startEditEntry(entry)">编辑</button>
-                  <button class="focus-button" type="button" :disabled="!entry.location" @click="focusEntry(entry)">
-                    {{ entry.location ? "地图查看" : "无地图点" }}
-                  </button>
-                  <button class="delete-button" type="button" @click="deleteEntry(entry.id)">删除</button>
-                </div>
-              </div>
-              <div class="timeline-badges">
-                <span v-if="entry.place" class="timeline-badge timeline-badge-place">{{ entry.place }}</span>
-                <span class="timeline-badge">{{ typeLabel(entry.type) }}</span>
-                <span class="timeline-badge">{{ statusLabel(entry.status) }}</span>
-                <span v-if="Number(entry.cost) > 0" class="timeline-badge">{{ formatCurrency(entry.cost) }}</span>
-                <span v-if="entry.location" class="timeline-badge">地图已定位</span>
-              </div>
-              <p class="timeline-notes">{{ entry.notes }}</p>
-            </article>
-          </div>
-        </section>
-      </section>
     </div>
   </div>
 

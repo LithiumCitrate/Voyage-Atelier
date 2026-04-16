@@ -1009,3 +1009,461 @@ textarea:focus {
     height: 300px;
   }
 }
+
+/* Apple Maps-inspired refresh */
+:root {
+  --bg-top: #f5ecdf;
+  --bg-bottom: #c8ddd7;
+  --panel: rgba(255, 251, 245, 0.76);
+  --panel-border: rgba(43, 59, 60, 0.1);
+  --text: #203132;
+  --muted: #617071;
+  --accent: #1f7f77;
+  --accent-strong: #13585a;
+  --accent-soft: rgba(31, 127, 119, 0.12);
+  --accent-mist: rgba(31, 127, 119, 0.07);
+  --sun: #b46b33;
+  --shadow: 0 22px 48px rgba(32, 49, 50, 0.1);
+  --shadow-soft: 0 14px 30px rgba(32, 49, 50, 0.06);
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.92), transparent 28%),
+    radial-gradient(circle at 80% 0%, rgba(31, 127, 119, 0.08), transparent 24%),
+    radial-gradient(circle at 88% 22%, rgba(180, 107, 51, 0.08), transparent 18%),
+    linear-gradient(180deg, #f6efe4, #e6eee8 58%, #d5e4df);
+}
+
+body::before {
+  background:
+    radial-gradient(circle at 15% 18%, rgba(255, 255, 255, 0.82), transparent 20%),
+    radial-gradient(circle at 86% 14%, rgba(31, 127, 119, 0.08), transparent 22%);
+  mask-image: none;
+  opacity: 0.9;
+}
+
+.page-shell {
+  width: min(1440px, calc(100% - 28px));
+  padding: 18px 0 28px;
+}
+
+.welcome-screen {
+  background:
+    radial-gradient(circle at 14% 18%, rgba(255, 255, 255, 0.96), transparent 28%),
+    radial-gradient(circle at 85% 12%, rgba(31, 127, 119, 0.12), transparent 24%),
+    radial-gradient(circle at 80% 78%, rgba(180, 107, 51, 0.1), transparent 18%),
+    linear-gradient(180deg, rgba(245, 236, 223, 0.98), rgba(200, 221, 215, 0.94));
+}
+
+.welcome-orbit {
+  border-color: rgba(31, 127, 119, 0.14);
+}
+
+.welcome-content {
+  width: min(820px, 100%);
+  padding: 42px 44px;
+  border-radius: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 30px 64px rgba(15, 23, 42, 0.08);
+}
+
+.welcome-title {
+  max-width: 680px;
+  font-size: clamp(3.5rem, 5.2vw, 5rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+
+.welcome-copy {
+  max-width: 560px;
+  font-size: 1rem;
+  line-height: 1.78;
+}
+
+.workspace-shell {
+  display: grid;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.sidebar-stack,
+.main-stage {
+  display: grid;
+  gap: 16px;
+}
+
+.sidebar-stack {
+  position: sticky;
+  top: 18px;
+}
+
+.main-stage {
+  min-width: 0;
+}
+
+.planning-deck {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.78fr) minmax(0, 1.22fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.layout,
+.dashboard-grid {
+  display: contents;
+}
+
+.panel {
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: linear-gradient(180deg, rgba(255, 251, 245, 0.8), rgba(249, 245, 238, 0.66));
+  backdrop-filter: blur(24px);
+  box-shadow: var(--shadow);
+}
+
+.panel::after {
+  inset: 0;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0));
+}
+
+.panel:hover,
+.panel:focus-within {
+  transform: translateY(-2px) scale(1.004);
+  box-shadow: 0 26px 56px rgba(32, 49, 50, 0.11);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+.planner,
+.itinerary,
+.metrics,
+.schedule,
+.map-stage {
+  padding: 18px;
+}
+
+.atelier-banner {
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: 18px;
+  padding: 22px 24px;
+  margin-bottom: 0;
+}
+
+.atelier-title {
+  font-size: clamp(1.9rem, 2.5vw, 2.8rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+
+.atelier-description {
+  max-width: 720px;
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+
+.atelier-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: stretch;
+}
+
+.atelier-chip {
+  border-radius: 22px;
+  background: rgba(255, 251, 245, 0.88);
+  border: 1px solid rgba(43, 59, 60, 0.06);
+}
+
+.section-heading {
+  padding-bottom: 12px;
+}
+
+.section-subcopy {
+  max-width: 100%;
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.action-group,
+.map-action-group,
+.timeline-actions {
+  gap: 6px;
+}
+
+.trip-form {
+  margin-top: 16px;
+}
+
+.field + .field,
+.field + .field-row,
+.field-row + .field,
+.field-row + .field-row {
+  margin-top: 14px;
+}
+
+.field-row {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+input,
+select,
+textarea {
+  border-radius: 16px;
+  border: 1px solid rgba(43, 59, 60, 0.08);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(31, 127, 119, 0.26);
+  box-shadow: 0 0 0 4px rgba(31, 127, 119, 0.08);
+}
+
+.primary-button {
+  background: linear-gradient(180deg, #2f8d86, #176963);
+  box-shadow: 0 12px 28px rgba(31, 127, 119, 0.22);
+}
+
+.ghost-button,
+.focus-button,
+.day-tab,
+.drag-handle {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(43, 59, 60, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.metrics-sidebar .stats-grid,
+.metrics-sidebar .insight-grid {
+  grid-template-columns: 1fr;
+}
+
+.compact-stats-grid .stat-card strong {
+  font-size: 1.55rem;
+}
+
+.compact-insight-grid .insight-card strong {
+  font-size: 1.3rem;
+}
+
+.map-stage {
+  padding: 18px;
+  overflow: visible;
+}
+
+.map-card-featured {
+  margin-top: 16px;
+  padding: 18px 18px 20px;
+  border-radius: 32px;
+  background: linear-gradient(180deg, rgba(255, 252, 248, 0.94), rgba(245, 241, 234, 0.86));
+  border: 1px solid rgba(43, 59, 60, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 20px 44px rgba(32, 49, 50, 0.08);
+}
+
+.map-card-featured::after {
+  content: "";
+  position: absolute;
+  inset: 14px 14px auto auto;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(31, 127, 119, 0.1), rgba(31, 127, 119, 0));
+  pointer-events: none;
+}
+
+.map-search-row {
+  grid-template-columns: minmax(0, 1fr) 132px;
+  margin-top: 0;
+}
+
+.map-search-results {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 14px;
+}
+
+.map-frame {
+  position: relative;
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 34px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(236, 243, 239, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 18px 40px rgba(32, 49, 50, 0.08);
+}
+
+.map-frame::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 28px;
+  border: 1px solid rgba(31, 127, 119, 0.1);
+  pointer-events: none;
+}
+
+.map-frame::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 34px;
+  border: 1px solid rgba(180, 107, 51, 0.1);
+  pointer-events: none;
+}
+
+.map-canvas {
+  margin-top: 0;
+  height: 660px;
+  border-radius: 24px;
+  border: 1px solid rgba(43, 59, 60, 0.06);
+  box-shadow: none;
+}
+
+.map-legend {
+  margin-top: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.itinerary .trip-form,
+.schedule .timeline {
+  margin-top: 18px;
+}
+
+.planning-deck .itinerary,
+.planning-deck .schedule {
+  min-width: 0;
+}
+
+.planning-deck .itinerary .field-row {
+  grid-template-columns: 1fr 1fr;
+}
+
+.planning-deck .itinerary textarea {
+  min-height: 120px;
+}
+
+.planning-deck .schedule {
+  padding-bottom: 20px;
+}
+
+.schedule .timeline {
+  gap: 12px;
+}
+
+.timeline-card {
+  padding: 18px 18px 18px 20px;
+  background: rgba(255, 252, 248, 0.82);
+}
+
+.timeline-card::before {
+  left: 0;
+  width: 4px;
+  top: 16px;
+  bottom: 16px;
+  background: linear-gradient(180deg, rgba(31, 127, 119, 0.18), rgba(31, 127, 119, 0.56));
+}
+
+.timeline-badge,
+.timeline-badge-place {
+  background: rgba(255, 255, 255, 0.9);
+  color: #314546;
+}
+
+.timeline-badge-place {
+  border-color: rgba(31, 127, 119, 0.12);
+  color: var(--accent-strong);
+}
+
+@media (max-width: 1180px) {
+  .workspace-shell {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+
+  .planning-deck {
+    grid-template-columns: 1fr;
+  }
+
+  .atelier-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .map-canvas {
+    height: 540px;
+  }
+}
+
+@media (max-width: 920px) {
+  .workspace-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-stack {
+    position: static;
+  }
+
+  .atelier-banner {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-deck .itinerary .field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .page-shell {
+    width: min(100% - 16px, 1440px);
+    padding-top: 14px;
+  }
+
+  .welcome-content {
+    width: 100%;
+    padding: 28px 22px;
+  }
+
+  .welcome-title {
+    font-size: 2.9rem;
+  }
+
+  .planner,
+  .itinerary,
+  .metrics,
+  .schedule,
+  .map-stage,
+  .atelier-banner {
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .map-search-row {
+    grid-template-columns: 1fr;
+  }
+
+  .map-frame {
+    padding: 10px;
+    border-radius: 26px;
+  }
+
+  .map-frame::before {
+    inset: 6px;
+    border-radius: 20px;
+  }
+
+  .map-canvas {
+    height: 380px;
+    border-radius: 18px;
+  }
+
+  .section-heading-row,
+  .timeline-topline {
+    flex-direction: column;
+  }
+}
