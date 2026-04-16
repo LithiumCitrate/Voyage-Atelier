@@ -23,7 +23,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   color: var(--text);
   background:
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.88), transparent 25%),
@@ -87,7 +87,7 @@ h2 {
 
 h1 {
   max-width: 760px;
-  font-family: "Instrument Serif", serif;
+  font-family: "Georgia", "Times New Roman", "Noto Serif SC", serif;
   font-size: clamp(3.1rem, 7vw, 6rem);
   line-height: 0.94;
 }
@@ -250,6 +250,7 @@ textarea {
 .ghost-button,
 .delete-button,
 .focus-button,
+.drag-handle,
 .day-tab {
   border: 0;
   cursor: pointer;
@@ -263,6 +264,20 @@ textarea {
   color: #f4fffd;
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   box-shadow: 0 12px 28px rgba(19, 88, 90, 0.24);
+}
+
+.entry-form-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.entry-form-actions .primary-button {
+  margin-top: 0;
+}
+
+.entry-cancel-button {
+  justify-self: start;
 }
 
 .ghost-button,
@@ -291,6 +306,51 @@ textarea {
 .map-card-title {
   display: block;
   font-size: 1.1rem;
+}
+
+.map-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+}
+
+.map-search-field {
+  margin: 0;
+}
+
+.map-search-button {
+  white-space: nowrap;
+}
+
+.map-search-results {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.search-result-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(43, 59, 60, 0.08);
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.search-result-title {
+  display: block;
+  font-size: 0.98rem;
+}
+
+.search-result-meta {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.search-result-card .ghost-button {
+  margin-top: 12px;
 }
 
 .map-canvas {
@@ -380,6 +440,15 @@ textarea {
   padding: 16px 18px;
 }
 
+.timeline-card.dragging {
+  opacity: 0.52;
+}
+
+.timeline-card.drag-over {
+  outline: 2px dashed rgba(31, 127, 119, 0.45);
+  outline-offset: 4px;
+}
+
 .timeline-topline {
   display: flex;
   justify-content: space-between;
@@ -420,6 +489,18 @@ textarea {
 
 .focus-button {
   color: var(--accent-strong);
+}
+
+.drag-handle {
+  padding: 11px 14px;
+  border-radius: 999px;
+  background: rgba(31, 127, 119, 0.12);
+  color: var(--accent-strong);
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .empty-state {
@@ -487,6 +568,10 @@ textarea {
 
   .action-group {
     justify-content: flex-start;
+  }
+
+  .map-search-row {
+    grid-template-columns: 1fr;
   }
 
   .map-canvas {
