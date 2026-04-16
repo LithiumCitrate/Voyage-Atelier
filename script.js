@@ -25,11 +25,12 @@ const defaultEntryForm = () => ({
   notes: ""
 });
 
-const routePalette = ["#1f7f77", "#d1683f", "#6b6bc5", "#2e7d4f", "#9d5a9e", "#9d7f2f"];
+const routePalette = ["#8fb6b0", "#cfa58d", "#a8add6", "#9dbb9d", "#c4abc8", "#c4b38a"];
 const defaultMapCenter = [34.5, 104];
 const defaultMapZoom = 4;
 const TIANDITU_KEY = import.meta.env.VITE_TIANDITU_KEY || "";
 const TIANDITU_API_BASE = "https://api.tianditu.gov.cn";
+const PLANNER_SESSION_KEY = "voyage-atelier-planner-entered";
 
 let tianDiTuScriptPromise = null;
 
@@ -67,7 +68,7 @@ function loadTianDiTuScript(key) {
 createApp({
   data() {
     return {
-      showWelcomeScreen: true,
+      showWelcomeScreen: !this.hasPlannerSession(),
       welcomeTouchStartY: null,
       trip: structuredClone(emptyState.trip),
       entries: [],
@@ -96,6 +97,12 @@ createApp({
   computed: {
     dayOptions() {
       return Array.from({ length: this.tripDaysCount() }, (_, index) => index + 1);
+    },
+
+    scheduleDays() {
+      return [...new Set(this.entries.map((entry) => entry.day))]
+        .filter((day) => Number.isFinite(day))
+        .sort((a, b) => a - b);
     },
 
     heroSummaryText() {
@@ -134,10 +141,6 @@ createApp({
       }
 
       return `已选择地图位置 ${this.selectedPointLabel(this.pendingMapPoint)}。提交行程时会一起写入。`;
-    },
-
-    routeScopeLabel() {
-      return this.routeScope === "all" ? "只看最近路线" : "查看全部路线";
     }
   },
 
@@ -154,6 +157,17 @@ createApp({
       }
     },
 
+    scheduleDays(newDays) {
+      if (newDays.length === 0) {
+        this.activeDay = 1;
+        return;
+      }
+
+      if (!newDays.includes(this.activeDay)) {
+        this.activeDay = newDays[0];
+      }
+    },
+
     activeDay(day) {
       this.entryForm.day = day;
     }
@@ -162,13 +176,46 @@ createApp({
   mounted() {
     window.scrollTo({ top: 0, behavior: "auto" });
     this.syncWelcomeMode();
+    window.addEventListener("beforeunload", this.handleBeforeUnload);
     nextTick(() => {
-      document.querySelector(".welcome-screen")?.focus();
+      if (this.showWelcomeScreen) {
+        document.querySelector(".welcome-screen")?.focus();
+      } else if (!this.map && !this.mapError) {
+        void this.initializeMapRuntime();
+      }
     });
     this.normalizeEntriesToTrip();
   },
 
+  beforeUnmount() {
+    window.removeEventListener("beforeunload", this.handleBeforeUnload);
+  },
+
   methods: {
+    hasPlannerSession() {
+      try {
+        return window.sessionStorage.getItem(PLANNER_SESSION_KEY) === "1";
+      } catch (error) {
+        return false;
+      }
+    },
+
+    setPlannerSession(active) {
+      try {
+        if (active) {
+          window.sessionStorage.setItem(PLANNER_SESSION_KEY, "1");
+        } else {
+          window.sessionStorage.removeItem(PLANNER_SESSION_KEY);
+        }
+      } catch (error) {
+        // Ignore storage failures and fall back to in-memory state.
+      }
+    },
+
+    handleBeforeUnload() {
+      this.setPlannerSession(false);
+    },
+
     async initializeMapRuntime() {
       try {
         this.mapApi = await loadTianDiTuScript(this.currentTianDiTuKey());
@@ -189,6 +236,7 @@ createApp({
       }
 
       this.showWelcomeScreen = false;
+      this.setPlannerSession(true);
       this.syncWelcomeMode();
       await nextTick();
       window.scrollTo({ top: 0, behavior: "auto" });
@@ -296,8 +344,12 @@ createApp({
       const start = this.parseDate(this.trip.startDate);
       const end = this.parseDate(this.trip.endDate);
 
+      if (!start && !end) {
+        return 15;
+      }
+
       if (!start || !end || end < start) {
-        return 1;
+        return 15;
       }
 
       const msPerDay = 24 * 60 * 60 * 1000;
@@ -425,6 +477,38 @@ createApp({
 
     routeCacheKey(start, end) {
       return `${start.lat.toFixed(6)},${start.lng.toFixed(6)}->${end.lat.toFixed(6)},${end.lng.toFixed(6)}`;
+    },
+
+    routeSequenceCacheKey(points) {
+      return points
+        .map((point) => `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`)
+        .join(" -> ");
+    },
+
+    svgToDataUrl(svg) {
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    },
+
+    createMarkerIcon(color = "#9dbab4") {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="72" height="88" viewBox="0 0 72 88">
+          <defs>
+            <filter id="pinShadow" x="-24%" y="-20%" width="148%" height="148%">
+              <feDropShadow dx="0" dy="7" stdDeviation="5.5" flood-color="#203132" flood-opacity="0.16"/>
+            </filter>
+          </defs>
+          <g filter="url(#pinShadow)">
+            <path d="M36 7C22.19 7 11 18.04 11 31.66c0 19.39 20.13 39.9 23.67 43.31a1.83 1.83 0 0 0 2.66 0C40.87 71.56 61 51.05 61 31.66 61 18.04 49.81 7 36 7Z" fill="${color}"/>
+            <circle cx="36" cy="29" r="17" fill="rgba(255,255,255,0.16)"/>
+          </g>
+        </svg>
+      `.trim();
+
+      return new this.mapApi.Icon({
+        iconUrl: this.svgToDataUrl(svg),
+        iconSize: new this.mapApi.Point(36, 44),
+        iconAnchor: new this.mapApi.Point(18, 44)
+      });
     },
 
     createLngLat(point) {
@@ -825,8 +909,30 @@ createApp({
       this.dragOverEntryId = null;
     },
 
-    createSelectedPointLayer(lat, lng) {
-      return new this.mapApi.Marker(this.createLngLat({ lat, lng }));
+    selectedPointColor() {
+      const selectedDay = Number(this.entryForm.day) || Number(this.activeDay) || 1;
+      return this.routeColorForDay(selectedDay);
+    },
+
+    createSelectedPointLayer(lat, lng, color = null) {
+      return new this.mapApi.Marker(this.createLngLat({ lat, lng }), {
+        icon: this.createMarkerIcon(color || this.selectedPointColor())
+      });
+    },
+
+    createEntryMarker(entry, color, markerPoint = null) {
+      const marker = new this.mapApi.Marker(this.createLngLat(markerPoint || entry.location), {
+        icon: this.createMarkerIcon(color)
+      });
+      const infoWindow = new this.mapApi.InfoWindow(`
+        <strong>Day ${entry.day} · ${entry.title}</strong><br>
+        ${entry.place || "未填写地点"}<br>
+        ${entry.time || "时间待定"} · ${this.statusLabel(entry.status)}
+      `);
+      marker.addEventListener("click", () => {
+        marker.openInfoWindow(infoWindow);
+      });
+      return marker;
     },
 
     clearMapOverlays() {
@@ -1051,6 +1157,8 @@ createApp({
         lng: item.location.lng
       };
       this.entryForm.place = item.title;
+      this.searchResults = [];
+      this.searchTried = false;
       void this.ensureMapReady().then((ready) => {
         if (!ready) {
           return;
@@ -1063,6 +1171,65 @@ createApp({
 
     routeColorForDay(day) {
       return routePalette[(day - 1) % routePalette.length];
+    },
+
+    locationGroupKey(point) {
+      return `${Number(point.lat).toFixed(6)},${Number(point.lng).toFixed(6)}`;
+    },
+
+    buildMarkerDisplayLocations(entries) {
+      const groupedEntries = new Map();
+
+      for (const entry of entries) {
+        if (!entry.location) {
+          continue;
+        }
+
+        const key = this.locationGroupKey(entry.location);
+
+        if (!groupedEntries.has(key)) {
+          groupedEntries.set(key, []);
+        }
+
+        groupedEntries.get(key).push(entry);
+      }
+
+      const displayLocations = new Map();
+
+      for (const group of groupedEntries.values()) {
+        const sortedGroup = [...group].sort((a, b) => {
+          if ((a.day || 0) !== (b.day || 0)) {
+            return (a.day || 0) - (b.day || 0);
+          }
+
+          if ((a.sequence || 0) !== (b.sequence || 0)) {
+            return (a.sequence || 0) - (b.sequence || 0);
+          }
+
+          return String(a.id).localeCompare(String(b.id));
+        });
+
+        if (sortedGroup.length === 1) {
+          const [entry] = sortedGroup;
+          displayLocations.set(entry.id, entry.location);
+          continue;
+        }
+
+        const radius = 0.0032;
+
+        sortedGroup.forEach((entry, index) => {
+          const angle = (Math.PI * 2 * index) / sortedGroup.length - Math.PI / 2;
+          const lngOffset = Math.cos(angle) * radius;
+          const latOffset = Math.sin(angle) * radius * 0.8;
+
+          displayLocations.set(entry.id, {
+            lat: entry.location.lat + latOffset,
+            lng: entry.location.lng + lngOffset
+          });
+        });
+      }
+
+      return displayLocations;
     },
 
     allLocatedEntries() {
@@ -1092,16 +1259,6 @@ createApp({
 
     focusAllRoutes() {
       void this.fitMapToEntries(this.allLocatedEntries());
-    },
-
-    async toggleRouteScope() {
-      this.routeScope = this.routeScope === "all" ? "nearest" : "all";
-
-      if (this.routeScope === "all") {
-        await this.fitMapToEntries(this.allLocatedEntries());
-      }
-
-      await this.renderMapData();
     },
 
     async focusEntry(entry) {
@@ -1139,45 +1296,92 @@ createApp({
         points.push([lat, lng]);
       }
 
-      if (points.length < 2) {
-        return [
-          [start.lat, start.lng],
-          [end.lat, end.lng]
-        ];
+      if (points.length < 3) {
+        return null;
       }
 
       return points;
     },
 
-    async fetchRoutePath(start, end) {
-      const cacheKey = this.routeCacheKey(start, end);
+    parseXmlRouteCoordinates(rawText) {
+      if (typeof rawText !== "string" || !rawText.trim()) {
+        return null;
+      }
+
+      try {
+        const xmlDoc = new DOMParser().parseFromString(rawText, "text/xml");
+        const routeLatLon = xmlDoc.getElementsByTagName("routelatlon")[0]?.textContent?.trim();
+
+        if (!routeLatLon) {
+          return null;
+        }
+
+        const points = routeLatLon
+          .split(";")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((item) => {
+            const [lngText, latText] = item.split(",");
+            const lat = Number(latText);
+            const lng = Number(lngText);
+
+            return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+          })
+          .filter(Boolean);
+
+        if (points.length >= 2) {
+          return points;
+        }
+      } catch (error) {
+        return null;
+      }
+
+      return null;
+    },
+
+    async fetchRecommendedRoutePath(points) {
+      const normalizedPoints = points.filter((point) => point && Number.isFinite(point.lat) && Number.isFinite(point.lng));
+
+      if (normalizedPoints.length < 2) {
+        return null;
+      }
+
+      const cacheKey = this.routeSequenceCacheKey(normalizedPoints);
 
       if (this.routeCache.has(cacheKey)) {
         return this.routeCache.get(cacheKey);
       }
 
+      const start = normalizedPoints[0];
+      const end = normalizedPoints[normalizedPoints.length - 1];
+      const midPoints = normalizedPoints
+        .slice(1, -1)
+        .map((point) => `${point.lng},${point.lat}`)
+        .join(";");
       const key = this.currentTianDiTuKey();
-      const postStr = encodeURIComponent(JSON.stringify({
+      const routePayload = {
         orig: `${start.lng},${start.lat}`,
         dest: `${end.lng},${end.lat}`,
         style: "0"
-      }));
-      const url = `https://api.tianditu.gov.cn/drive?postStr=${postStr}&type=search&tk=${encodeURIComponent(key)}`;
+      };
+
+      if (midPoints) {
+        routePayload.mid = midPoints;
+      }
+
+      const postStr = encodeURIComponent(JSON.stringify(routePayload));
       const routeUrl = `${TIANDITU_API_BASE}/drive?postStr=${postStr}&type=search&tk=${encodeURIComponent(key)}`;
 
       try {
         const response = await fetch(routeUrl);
         const rawText = await response.text();
-        const points = this.parseRouteCoordinates(rawText, start, end);
-        this.routeCache.set(cacheKey, points);
-        return points;
+        const pointsFromXml = this.parseXmlRouteCoordinates(rawText);
+        const routePoints = pointsFromXml || this.parseRouteCoordinates(rawText, start, end);
+        this.routeCache.set(cacheKey, routePoints);
+        return routePoints;
       } catch (error) {
-        const fallback = [
-          [start.lat, start.lng],
-          [end.lat, end.lng]
-        ];
-        this.routeCache.set(cacheKey, fallback);
-        return fallback;
+        this.routeCache.set(cacheKey, null);
+        return null;
       }
     },
 
@@ -1190,10 +1394,26 @@ createApp({
       this.clearMapOverlays();
       const requestToken = ++this.routeRequestToken;
       const locatedEntries = this.entries.filter((entry) => entry.location);
-      const allDays = [...new Set(locatedEntries.map((entry) => entry.day))];
-      let visibleDays = allDays;
+      const markerDisplayLocations = this.buildMarkerDisplayLocations(locatedEntries);
 
-      if (this.routeScope === "nearest" && locatedEntries.length > 0) {
+      for (const day of [...new Set(locatedEntries.map((entry) => entry.day))]) {
+        const sortedEntries = this.entriesForDay(day).filter((entry) => entry.location);
+        const color = this.routeColorForDay(day);
+
+        for (const entry of sortedEntries) {
+          const marker = this.createEntryMarker(entry, color, markerDisplayLocations.get(entry.id) || entry.location);
+          this.map.addOverLay(marker);
+          this.mapMarkers.push(marker);
+        }
+      }
+
+      const allDays = [...new Set(locatedEntries.map((entry) => entry.day))];
+      let routeDay = null;
+      const activeDayEntries = this.entriesForDay(this.activeDay).filter((entry) => entry.location);
+
+      if (activeDayEntries.length > 0) {
+        routeDay = this.activeDay;
+      } else if (locatedEntries.length > 0) {
         const bounds = this.map.getBounds();
         const preferred = locatedEntries
           .map((entry) => ({
@@ -1209,48 +1429,32 @@ createApp({
             return a.distance - b.distance;
           })[0];
 
-        visibleDays = preferred ? [preferred.entry.day] : allDays;
+        routeDay = preferred ? preferred.entry.day : allDays[0] || null;
       }
 
-      for (const day of visibleDays) {
-        const sortedEntries = this.entriesForDay(day).filter((entry) => entry.location);
-        const color = this.routeColorForDay(day);
-
-        for (const entry of sortedEntries) {
-          const marker = new this.mapApi.Marker(this.createLngLat(entry.location));
-          const infoWindow = new this.mapApi.InfoWindow(`
-            <strong>Day ${entry.day} · ${entry.title}</strong><br>
-            ${entry.place || "未填写地点"}<br>
-            ${entry.time || "时间待定"}
-          `);
-          marker.addEventListener("click", () => {
-            marker.openInfoWindow(infoWindow);
-          });
-          this.map.addOverLay(marker);
-          this.mapMarkers.push(marker);
-        }
+      if (routeDay !== null) {
+        const sortedEntries = this.entriesForDay(routeDay).filter((entry) => entry.location);
 
         if (sortedEntries.length >= 2) {
-          for (let index = 0; index < sortedEntries.length - 1; index += 1) {
-            const currentEntry = sortedEntries[index];
-            const nextEntry = sortedEntries[index + 1];
-            const routePoints = await this.fetchRoutePath(currentEntry.location, nextEntry.location);
+          const color = this.routeColorForDay(routeDay);
+          const routePoints = await this.fetchRecommendedRoutePath(sortedEntries.map((entry) => entry.location));
 
-            if (requestToken !== this.routeRequestToken) {
-              return;
-            }
+          if (requestToken !== this.routeRequestToken) {
+            return;
+          }
 
+          if (routePoints && routePoints.length >= 3) {
             const line = new this.mapApi.Polyline(
               routePoints.map(([lat, lng]) => new this.mapApi.LngLat(lng, lat)),
               {
                 color,
-                weight: 4,
-                opacity: 0.82
+                weight: 3,
+                opacity: 0.68
               }
             );
 
             line.addEventListener("click", (event) => {
-              this.map.openInfoWindow(new this.mapApi.InfoWindow(`Day ${day} 路线`), event.lnglat);
+              this.map.openInfoWindow(new this.mapApi.InfoWindow(`Day ${routeDay} 推荐路线`), event.lnglat);
             });
             this.map.addOverLay(line);
             this.routePolylines.push(line);
@@ -1259,10 +1463,23 @@ createApp({
       }
 
       if (this.pendingMapPoint) {
+        const pendingPointColor = this.selectedPointColor();
+
         if (!this.selectedPointMarker) {
-          this.selectedPointMarker = this.createSelectedPointLayer(this.pendingMapPoint.lat, this.pendingMapPoint.lng);
+          this.selectedPointMarker = this.createSelectedPointLayer(
+            this.pendingMapPoint.lat,
+            this.pendingMapPoint.lng,
+            pendingPointColor
+          );
           this.map.addOverLay(this.selectedPointMarker);
         } else {
+          this.map.removeOverLay(this.selectedPointMarker);
+          this.selectedPointMarker = this.createSelectedPointLayer(
+            this.pendingMapPoint.lat,
+            this.pendingMapPoint.lng,
+            pendingPointColor
+          );
+          this.map.addOverLay(this.selectedPointMarker);
           this.selectedPointMarker.setLngLat(this.createLngLat(this.pendingMapPoint));
         }
       } else if (this.selectedPointMarker) {

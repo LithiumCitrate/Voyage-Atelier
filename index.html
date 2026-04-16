@@ -126,7 +126,6 @@
               </div>
               <div class="map-action-group">
                 <button class="ghost-button" type="button" @click="clearPendingMapPoint">清除选点</button>
-                <button class="ghost-button" type="button" @click="toggleRouteScope">{{ routeScopeLabel }}</button>
               </div>
             </div>
 
@@ -283,9 +282,9 @@
             <button class="ghost-button" type="button" @click="clearCurrentDay">清空当前天</button>
           </div>
 
-          <div class="day-tabs">
+          <div v-if="scheduleDays.length > 0" class="day-tabs">
             <button
-              v-for="day in dayOptions"
+              v-for="day in scheduleDays"
               :key="day"
               class="day-tab"
               :class="{ active: activeDay === day }"
