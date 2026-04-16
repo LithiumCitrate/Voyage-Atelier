@@ -1,6 +1,4 @@
-import { createApp, nextTick } from "vue";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+﻿import { createApp, nextTick } from "vue";
 
 const emptyState = {
   trip: {
@@ -31,11 +29,46 @@ const routePalette = ["#1f7f77", "#d1683f", "#6b6bc5", "#2e7d4f", "#9d5a9e", "#9
 const defaultMapCenter = [34.5, 104];
 const defaultMapZoom = 4;
 const TIANDITU_KEY = import.meta.env.VITE_TIANDITU_KEY || "";
-const TIANDITU_API_BASE = "http://api.tianditu.gov.cn";
+const TIANDITU_API_BASE = "https://api.tianditu.gov.cn";
+
+let tianDiTuScriptPromise = null;
+
+function loadTianDiTuScript(key) {
+  if (window.T) {
+    return Promise.resolve(window.T);
+  }
+
+  if (!key) {
+    return Promise.reject(new Error("missing_tianditu_key"));
+  }
+
+  if (tianDiTuScriptPromise) {
+    return tianDiTuScriptPromise;
+  }
+
+  tianDiTuScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `https://api.tianditu.gov.cn/api?v=4.0&tk=${encodeURIComponent(key)}`;
+    script.async = true;
+    script.onload = () => {
+      if (window.T) {
+        resolve(window.T);
+      } else {
+        reject(new Error("tianditu_runtime_unavailable"));
+      }
+    };
+    script.onerror = () => reject(new Error("tianditu_script_load_failed"));
+    document.head.appendChild(script);
+  });
+
+  return tianDiTuScriptPromise;
+}
 
 createApp({
   data() {
     return {
+      showWelcomeScreen: true,
+      welcomeTouchStartY: null,
       trip: structuredClone(emptyState.trip),
       entries: [],
       entryForm: defaultEntryForm(),
@@ -48,14 +81,15 @@ createApp({
       routeScope: "nearest",
       draggedEntryId: null,
       dragOverEntryId: null,
+      mapApi: null,
       map: null,
       selectedPointMarker: null,
-      routeLayerGroup: null,
-      markerLayerGroup: null,
-      tiandituLayers: [],
+      mapMarkers: [],
+      routePolylines: [],
       routeRequestToken: 0,
       routeCache: new Map(),
-      adminLabelCache: new Map()
+      adminLabelCache: new Map(),
+      mapError: ""
     };
   },
 
@@ -126,12 +160,71 @@ createApp({
   },
 
   mounted() {
+    window.scrollTo({ top: 0, behavior: "auto" });
+    this.syncWelcomeMode();
+    nextTick(() => {
+      document.querySelector(".welcome-screen")?.focus();
+    });
     this.normalizeEntriesToTrip();
-    this.ensureMap();
-    void this.renderMapData();
   },
 
   methods: {
+    async initializeMapRuntime() {
+      try {
+        this.mapApi = await loadTianDiTuScript(this.currentTianDiTuKey());
+        await this.ensureMap();
+        await this.renderMapData();
+      } catch (error) {
+        this.mapError = "天地图加载失败，请检查密钥或网络连接。";
+      }
+    },
+
+    syncWelcomeMode() {
+      document.body.style.overflow = this.showWelcomeScreen ? "hidden" : "";
+    },
+
+    async enterPlanner() {
+      if (!this.showWelcomeScreen) {
+        return;
+      }
+
+      this.showWelcomeScreen = false;
+      this.syncWelcomeMode();
+      await nextTick();
+      window.scrollTo({ top: 0, behavior: "auto" });
+
+      if (!this.map && !this.mapError) {
+        await this.initializeMapRuntime();
+      }
+    },
+
+    handleWelcomeWheel(event) {
+      if (event.deltaY > 8) {
+        void this.enterPlanner();
+      }
+    },
+
+    handleWelcomeKeydown(event) {
+      if (["ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+        event.preventDefault();
+        void this.enterPlanner();
+      }
+    },
+
+    handleWelcomeTouchStart(event) {
+      this.welcomeTouchStartY = event.changedTouches?.[0]?.clientY ?? null;
+    },
+
+    handleWelcomeTouchEnd(event) {
+      const endY = event.changedTouches?.[0]?.clientY ?? null;
+
+      if (this.welcomeTouchStartY !== null && endY !== null && this.welcomeTouchStartY - endY > 36) {
+        void this.enterPlanner();
+      }
+
+      this.welcomeTouchStartY = null;
+    },
+
     createId() {
       if (window.crypto && typeof window.crypto.randomUUID === "function") {
         return window.crypto.randomUUID();
@@ -334,12 +427,18 @@ createApp({
       return `${start.lat.toFixed(6)},${start.lng.toFixed(6)}->${end.lat.toFixed(6)},${end.lng.toFixed(6)}`;
     },
 
+    createLngLat(point) {
+      return this.mapApi ? new this.mapApi.LngLat(point.lng, point.lat) : null;
+    },
+
     distanceToMapCenter(point) {
-      if (!this.map) {
+      if (!this.map || !this.mapApi) {
         return Number.MAX_SAFE_INTEGER;
       }
 
-      return this.map.distance(this.map.getCenter(), L.latLng(point.lat, point.lng));
+      const center = this.map.getCenter();
+      const target = this.createLngLat(point);
+      return target ? center.distanceTo(target) : Number.MAX_SAFE_INTEGER;
     },
 
     buildAdministrativeLabel(addressComponent = {}) {
@@ -632,14 +731,10 @@ createApp({
           lat: entry.location.lat,
           lng: entry.location.lng
         };
-        this.ensureMap();
-        this.map.setView([entry.location.lat, entry.location.lng], 14);
-
-        if (!this.selectedPointMarker) {
-          this.selectedPointMarker = this.createSelectedPointLayer(entry.location.lat, entry.location.lng).addTo(this.map);
-        } else {
-          this.selectedPointMarker.setLatLng([entry.location.lat, entry.location.lng]).addTo(this.map);
-        }
+        void this.ensureMap().then(() => {
+          this.map.centerAndZoom(this.createLngLat(entry.location), 14);
+          void this.renderMapData();
+        });
       } else {
         this.clearPendingMapPoint();
       }
@@ -730,75 +825,57 @@ createApp({
       this.dragOverEntryId = null;
     },
 
-    createTianDiTuLayer(layerType, key) {
-      return L.tileLayer(
-        `https://t{s}.tianditu.gov.cn/${layerType}_w/wmts?service=wmts&request=GetTile&version=1.0.0&LAYER=${layerType}&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${encodeURIComponent(key)}`,
-        {
-          subdomains: ["0", "1", "2", "3", "4", "5", "6", "7"],
-          maxZoom: 18,
-          attribution: '&copy; <a href="https://www.tianditu.gov.cn/">天地图</a>'
-        }
-      );
-    },
-
-    refreshMapSource() {
-      this.ensureMap();
-
-      for (const layer of this.tiandituLayers) {
-        this.map.removeLayer(layer);
-      }
-
-      const key = this.currentTianDiTuKey();
-      this.tiandituLayers = [
-        this.createTianDiTuLayer("vec", key),
-        this.createTianDiTuLayer("cva", key)
-      ];
-
-      for (const layer of this.tiandituLayers) {
-        layer.addTo(this.map);
-      }
-    },
-
     createSelectedPointLayer(lat, lng) {
-      return L.circleMarker([lat, lng], {
-        radius: 9,
-        weight: 3,
-        color: "#13585a",
-        fillColor: "#ffffff",
-        fillOpacity: 0.96
-      });
+      return new this.mapApi.Marker(this.createLngLat({ lat, lng }));
     },
 
-    ensureMap() {
+    clearMapOverlays() {
+      if (!this.map) {
+        return;
+      }
+
+      for (const marker of this.mapMarkers) {
+        this.map.removeOverLay(marker);
+      }
+
+      for (const polyline of this.routePolylines) {
+        this.map.removeOverLay(polyline);
+      }
+
+      this.mapMarkers = [];
+      this.routePolylines = [];
+    },
+
+    async ensureMap() {
       if (this.map) {
         return;
       }
 
-      this.map = L.map("map", { zoomControl: true }).setView(defaultMapCenter, defaultMapZoom);
-      this.routeLayerGroup = L.layerGroup().addTo(this.map);
-      this.markerLayerGroup = L.layerGroup().addTo(this.map);
-      this.refreshMapSource();
-      this.map.on("moveend", () => {
+      if (!this.mapApi) {
+        this.mapApi = await loadTianDiTuScript(this.currentTianDiTuKey());
+      }
+
+      this.map = new this.mapApi.Map("map");
+      this.map.centerAndZoom(new this.mapApi.LngLat(defaultMapCenter[1], defaultMapCenter[0]), defaultMapZoom);
+      this.map.enableScrollWheelZoom();
+
+      this.map.addEventListener("moveend", () => {
         if (this.routeScope === "nearest") {
           void this.renderMapData();
         }
       });
 
-      this.map.on("click", (event) => {
+      this.map.addEventListener("click", (event) => {
         this.pendingMapPoint = {
-          lat: event.latlng.lat,
-          lng: event.latlng.lng
+          lat: event.lnglat.getLat(),
+          lng: event.lnglat.getLng()
         };
-
-        if (!this.selectedPointMarker) {
-          this.selectedPointMarker = this.createSelectedPointLayer(this.pendingMapPoint.lat, this.pendingMapPoint.lng).addTo(this.map);
-        } else {
-          this.selectedPointMarker.setLatLng([this.pendingMapPoint.lat, this.pendingMapPoint.lng]).addTo(this.map);
-        }
 
         if (!this.entryForm.place.trim() || this.startsWithMapPlaceholder(this.entryForm.place.trim())) {
           this.entryForm.place = `地图选点 ${this.selectedPointLabel(this.pendingMapPoint)}`;
         }
+
+        void this.renderMapData();
 
         void this.reverseGeocodePoint(this.pendingMapPoint).then((address) => {
           if (!address || !this.pendingMapPoint) {
@@ -814,11 +891,23 @@ createApp({
       });
     },
 
+    async ensureMapReady() {
+      if (this.map) {
+        return true;
+      }
+
+      if (!this.mapError) {
+        await this.initializeMapRuntime();
+      }
+
+      return Boolean(this.map);
+    },
+
     clearPendingMapPoint() {
       this.pendingMapPoint = null;
 
-      if (this.selectedPointMarker) {
-        this.selectedPointMarker.remove();
+      if (this.selectedPointMarker && this.map) {
+        this.map.removeOverLay(this.selectedPointMarker);
         this.selectedPointMarker = null;
       }
     },
@@ -859,9 +948,14 @@ createApp({
       }
 
       const key = this.currentTianDiTuKey();
+      const ready = await this.ensureMapReady();
+      if (!ready) {
+        return;
+      }
+
       const bounds = this.map ? this.map.getBounds() : null;
       const mapBound = bounds
-        ? `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`
+        ? `${bounds.getSouthWest().getLng()},${bounds.getSouthWest().getLat()},${bounds.getNorthEast().getLng()},${bounds.getNorthEast().getLat()}`
         : `${defaultMapCenter[1] - 10},${defaultMapCenter[0] - 8},${defaultMapCenter[1] + 10},${defaultMapCenter[0] + 8}`;
       const requests = [
         {
@@ -957,14 +1051,14 @@ createApp({
         lng: item.location.lng
       };
       this.entryForm.place = item.title;
-      this.ensureMap();
-      this.map.setView([item.location.lat, item.location.lng], 15);
+      void this.ensureMapReady().then((ready) => {
+        if (!ready) {
+          return;
+        }
 
-      if (!this.selectedPointMarker) {
-        this.selectedPointMarker = this.createSelectedPointLayer(item.location.lat, item.location.lng).addTo(this.map);
-      } else {
-        this.selectedPointMarker.setLatLng([item.location.lat, item.location.lng]).addTo(this.map);
-      }
+        this.map.centerAndZoom(this.createLngLat(item.location), 15);
+        void this.renderMapData();
+      });
     },
 
     routeColorForDay(day) {
@@ -975,45 +1069,52 @@ createApp({
       return this.entries.filter((entry) => entry.location);
     },
 
-    fitMapToEntries(entries) {
-      this.ensureMap();
+    async fitMapToEntries(entries) {
+      const ready = await this.ensureMapReady();
+      if (!ready) {
+        return;
+      }
+
       const validEntries = entries.filter((entry) => entry.location);
 
       if (validEntries.length === 0) {
-        this.map.setView(defaultMapCenter, defaultMapZoom);
+        this.map.centerAndZoom(new this.mapApi.LngLat(defaultMapCenter[1], defaultMapCenter[0]), defaultMapZoom);
         return;
       }
 
       if (validEntries.length === 1) {
-        this.map.setView([validEntries[0].location.lat, validEntries[0].location.lng], 13);
+        this.map.centerAndZoom(this.createLngLat(validEntries[0].location), 13);
         return;
       }
 
-      const bounds = L.latLngBounds(validEntries.map((entry) => [entry.location.lat, entry.location.lng]));
-      this.map.fitBounds(bounds.pad(0.18));
+      this.map.setViewport(validEntries.map((entry) => this.createLngLat(entry.location)));
     },
 
     focusAllRoutes() {
-      this.fitMapToEntries(this.allLocatedEntries());
+      void this.fitMapToEntries(this.allLocatedEntries());
     },
 
     async toggleRouteScope() {
       this.routeScope = this.routeScope === "all" ? "nearest" : "all";
 
       if (this.routeScope === "all") {
-        this.fitMapToEntries(this.allLocatedEntries());
+        await this.fitMapToEntries(this.allLocatedEntries());
       }
 
       await this.renderMapData();
     },
 
-    focusEntry(entry) {
+    async focusEntry(entry) {
       if (!entry.location) {
         return;
       }
 
-      this.ensureMap();
-      this.map.setView([entry.location.lat, entry.location.lng], 14);
+      const ready = await this.ensureMapReady();
+      if (!ready) {
+        return;
+      }
+
+      this.map.centerAndZoom(this.createLngLat(entry.location), 14);
     },
 
     parseRouteCoordinates(rawText, start, end) {
@@ -1081,9 +1182,12 @@ createApp({
     },
 
     async renderMapData() {
-      this.ensureMap();
-      this.routeLayerGroup.clearLayers();
-      this.markerLayerGroup.clearLayers();
+      const ready = await this.ensureMapReady();
+      if (!ready) {
+        return;
+      }
+
+      this.clearMapOverlays();
       const requestToken = ++this.routeRequestToken;
       const locatedEntries = this.entries.filter((entry) => entry.location);
       const allDays = [...new Set(locatedEntries.map((entry) => entry.day))];
@@ -1094,7 +1198,7 @@ createApp({
         const preferred = locatedEntries
           .map((entry) => ({
             entry,
-            inView: bounds.contains([entry.location.lat, entry.location.lng]),
+            inView: bounds.contains(this.createLngLat(entry.location)),
             distance: this.distanceToMapCenter(entry.location)
           }))
           .sort((a, b) => {
@@ -1113,20 +1217,17 @@ createApp({
         const color = this.routeColorForDay(day);
 
         for (const entry of sortedEntries) {
-          const marker = L.circleMarker([entry.location.lat, entry.location.lng], {
-            radius: 8,
-            weight: 2,
-            color,
-            fillColor: "#ffffff",
-            fillOpacity: 0.92
-          });
-
-          marker.bindPopup(`
+          const marker = new this.mapApi.Marker(this.createLngLat(entry.location));
+          const infoWindow = new this.mapApi.InfoWindow(`
             <strong>Day ${entry.day} · ${entry.title}</strong><br>
             ${entry.place || "未填写地点"}<br>
             ${entry.time || "时间待定"}
           `);
-          marker.addTo(this.markerLayerGroup);
+          marker.addEventListener("click", () => {
+            marker.openInfoWindow(infoWindow);
+          });
+          this.map.addOverLay(marker);
+          this.mapMarkers.push(marker);
         }
 
         if (sortedEntries.length >= 2) {
@@ -1139,32 +1240,35 @@ createApp({
               return;
             }
 
-            const line = L.polyline(routePoints, {
-              color,
-              weight: 4,
-              opacity: 0.82
-            });
+            const line = new this.mapApi.Polyline(
+              routePoints.map(([lat, lng]) => new this.mapApi.LngLat(lng, lat)),
+              {
+                color,
+                weight: 4,
+                opacity: 0.82
+              }
+            );
 
-            line.bindPopup(`Day ${day} 路线`);
-            line.addTo(this.routeLayerGroup);
+            line.addEventListener("click", (event) => {
+              this.map.openInfoWindow(new this.mapApi.InfoWindow(`Day ${day} 路线`), event.lnglat);
+            });
+            this.map.addOverLay(line);
+            this.routePolylines.push(line);
           }
         }
       }
 
       if (this.pendingMapPoint) {
         if (!this.selectedPointMarker) {
-          this.selectedPointMarker = this.createSelectedPointLayer(this.pendingMapPoint.lat, this.pendingMapPoint.lng).addTo(this.map);
+          this.selectedPointMarker = this.createSelectedPointLayer(this.pendingMapPoint.lat, this.pendingMapPoint.lng);
+          this.map.addOverLay(this.selectedPointMarker);
         } else {
-          this.selectedPointMarker.setLatLng([this.pendingMapPoint.lat, this.pendingMapPoint.lng]).addTo(this.map);
+          this.selectedPointMarker.setLngLat(this.createLngLat(this.pendingMapPoint));
         }
       } else if (this.selectedPointMarker) {
-        this.selectedPointMarker.remove();
+        this.map.removeOverLay(this.selectedPointMarker);
         this.selectedPointMarker = null;
       }
-
-      window.setTimeout(() => {
-        this.map.invalidateSize();
-      }, 0);
     }
   }
 }).mount("#app");
